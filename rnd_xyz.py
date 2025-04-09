@@ -1,5 +1,4 @@
-# sGenerate random coordinates for a given number of atoms and create an xyz file.
-# script.py
+# Generate random coordinates for a given number of atoms and create an xyz file.
 import sys
 import re
 import numpy as np
