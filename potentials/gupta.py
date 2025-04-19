@@ -1,7 +1,7 @@
 import autograd.numpy as np
 from autograd import elementwise_grad as egrad
 from autograd import hessian as hess
-
+from timer import timer
 
 parameters = {
     # A, XI: Coehesive energy (eV)
@@ -10,40 +10,45 @@ parameters = {
     #         A         XI       P        Q        R0
     "Fe-Fe": (0.13315, 1.6179,  10.5000, 2.6000,  2.5530),
     "Fe-Co": (0.11246, 1.5515,  11.0380, 2.4379,  2.5248),
-    "Co-Fe": (0.11246, 1.5515,  11.0380, 2.4379,  2.5248),
     "Fe-Ni": (0.07075, 1.3157,  13.3599, 1.7582,  2.5213),
-    "Ni-Fe": (0.07075, 1.3157,  13.3599, 1.7582,  2.5213),
     "Co-Co": (0.09500, 1.4880,  11.6040, 2.2860,  2.4970),
     "Co-Ni": (0.05970, 1.2618,  14.0447, 1.6486,  2.4934),
-    "Ni-Co": (0.05970, 1.2618,  14.0447, 1.6486,  2.4934),
     "Ni-Ni": (0.03760, 1.0700,  16.9990, 1.1890,  2.4900),
     "Cu-Cu": (0.08550, 1.2240,  10.9600, 2.2780,  2.5562),
-    "Cu-Pd": (0.13005, 1.4710,  10.9135, 3.0100,  2.65235),
-    "Pd-Cu": (0.13005, 1.4710,  10.9135, 3.0100,  2.65235),
+    "Cu-Pd": (0.13005, 1.4710,  10.9135, 3.0100,  2.6523),
     "Cu-Ag": (0.09800, 1.2274,  10.7000, 2.8050,  2.7224),
-    "Ag-Cu": (0.09800, 1.2274,  10.7000, 2.8050,  2.7224),
     "Cu-Pt": (0.16000, 1.8200,  10.7860, 3.1410,  2.6660),
-    "Pt-Cu": (0.16000, 1.8200,  10.7860, 3.1410,  2.6660),
     "Cu-Au": (0.15390, 1.5605,  11.0500, 3.0475,  2.5562),
-    "Au-Cu": (0.15390, 1.5605,  11.0500, 3.0475,  2.5562),
     "Pd-Pd": (0.17460, 1.7180,  10.8670, 3.7420,  2.7485),
     "Pd-Ag": (0.16100, 1.5597,  10.8950, 3.4920,  2.8185),
-    "Ag-Pd": (0.16100, 1.5597,  10.8950, 3.4920,  2.8185),
     "Pd-Pt": (0.23000, 2.2000,  10.7400, 3.8700,  2.7600),
-    "Pt-Pd": (0.23000, 2.2000,  10.7400, 3.8700,  2.7600),
     "Pd-Au": (0.19000, 1.7500,  10.5400, 3.8900,  2.8160),
-    "Au-Pd": (0.19000, 1.7500,  10.5400, 3.8900,  2.8160),
     "Ag-Ag": (0.10280, 1.1780,  10.9280, 3.1390,  2.8885),
     "Ag-Pt": (0.17500, 1.7900,  10.7300, 3.5900,  2.8330),
-    "Pt-Ag": (0.17500, 1.7900,  10.7300, 3.5900,  2.8330),
     "Ag-Au": (0.14900, 1.4874,  10.4940, 3.6070,  2.8864),
-    "Au-Ag": (0.14900, 1.4874,  10.4940, 3.6070,  2.8864),
     "Pt-Pt": (0.29750, 2.6950,  10.6120, 4.0040,  2.7747),
     "Pt-Au": (0.25000, 2.2000,  10.4200, 4.0200,  2.8300),
-    "Au-Pt": (0.25000, 2.2000,  10.4200, 4.0200,  2.8300),
     "Au-Au": (0.20610, 1.7900,  10.2290, 4.0360,  2.8843),
-    # "Al-Al": (0.07690, 1.1280,  15.1194, 1.9300,  0.9787)  # TODO: Fix parameters for Al-Al interaction
 }
+
+def get_interaction_key(atom1, atom2):
+    """
+    Get a standardized key for atom pair interactions.
+    
+    This function ensures that we don't need duplicate entries in the parameters
+    dictionary by always using a consistent format for the key.
+    
+    Args:
+        atom1: First atom symbol
+        atom2: Second atom symbol
+        
+    Returns:
+        A string key for the parameters dictionary
+    """
+    # Sort alphabetically to ensure consistent key format
+    if atom1 > atom2:
+        atom1, atom2 = atom2, atom1
+    return f"{atom1}-{atom2}"
 
 
 class Gupta:
@@ -52,7 +57,6 @@ class Gupta:
     Supports interactions between the following atomic pairs:
     - Fe, Co, and Ni
     - Cu, Pd, Ag, Pt, and Au.
-    - Al # TODO: Fix parameters for Al-Al interaction
     
     Args:
         atoms: (list[str]) List of atomic symbols.
@@ -91,7 +95,8 @@ class Gupta:
 
         # Access parameters using a more readable format with tuples
         self.A, self.XI, self.P, self.Q, self.R0 = zip(*[
-            parameters[f"{aij[0]}-{aij[1]}"] for aij in atom_ij
+            parameters[f"{aij[0]}-{aij[1]}"] if f"{aij[0]}-{aij[1]}" in parameters 
+            else parameters[f"{aij[1]}-{aij[0]}"] for aij in atom_ij
         ])
 
         # Convert to numpy arrays for calculations
@@ -119,7 +124,7 @@ class Gupta:
         self.gradient = egrad(self.potential)
         self.hessian = hess(self.potential)
 
-
+    # @timer
     def potential(self, coords: np.ndarray) -> float:
         """
         Calculate the potential energy of the system based on the given coordinates.
@@ -144,7 +149,7 @@ class Gupta:
         U -= np.sum(np.sqrt(np.sum(Ub[self.pairwise], axis=1)))
         return U
     
-
+    # @timer
     def gradient(self, coords: np.ndarray) -> np.ndarray:
         """
         Compute the gradient of the potential with respect to atomic coordinates.
@@ -157,7 +162,7 @@ class Gupta:
         """
         return egrad(self.potential)(coords)
 
-
+    # @timer
     def hessian(self, coords: np.ndarray) -> np.ndarray:
         """
         Calculate the Hessian matrix of the potential at the given coordinates.
