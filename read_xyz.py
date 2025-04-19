@@ -2,13 +2,13 @@ import numpy as np
 
 def read_xyz_file(path: str) -> tuple[list[str], np.ndarray]:
     """
-    Read an xyz file and return atoms types and the coordinates.
+    Read an xyz file and return atom types and coordinates.
 
     Args:
-        file: path to the xyz file.
+        path: Path to the xyz file.
 
     Returns:
-        A tuple containing the coordinates (np.ndarray) and atom types (list[str]).
+        A tuple containing atom types (list[str]) and coordinates (np.ndarray).
     """
     atoms = []
     coordinates = []
@@ -20,4 +20,9 @@ def read_xyz_file(path: str) -> tuple[list[str], np.ndarray]:
             atoms.append(atom)
             coordinates.append(xyz)
     
-    return atoms, np.array(coordinates, dtype=float)
+    # Ensure we always return an array with shape (n, 3)
+    coords_array = np.array(coordinates, dtype=float)
+    if len(coords_array) == 0:
+        coords_array = coords_array.reshape(0, 3)
+    
+    return atoms, coords_array
